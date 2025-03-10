@@ -20,6 +20,7 @@
     <div id="gmView" style="display:none;">
       <button onclick="stopGame()">STOP</button>
       <button onclick="doneGame()">DONE</button>
+      <button onclick="resetGame()">RESET ALL</button>
       <p>Sentences:</p>
       <ul id="sentenceList"></ul>
     </div>
@@ -34,8 +35,11 @@
     function login() {
       const password = document.getElementById('password').value;
       const name = document.getElementById('name').value;
+      console.log('Attempting login:', { password, name });
       socket.emit('login', { password, name });
     }
+
+    socket.on('connect', () => console.log('Connected to backend'));
 
     socket.on('loginSuccess', (data) => {
       myName = document.getElementById('name').value;
@@ -48,8 +52,20 @@
       document.getElementById('loginError').innerText = 'Wrong password or name taken';
     });
 
-    socket.on('updateUsers', (data) => {
-      updateUI(data);
+    socket.on('updateUsers', (data) => updateUI(data));
+
+    socket.on('newSentence', (data) => {
+      console.log('New sentence received:', data); // Debug
+      if (myName === document.getElementById('gameMaster').innerText) {
+        const li = document.createElement('li');
+        li.innerText = `${data.name}: ${data.sentence}`;
+        document.getElementById('sentenceList').appendChild(li);
+      }
+    });
+
+    socket.on('gameStopped', () => {
+      document.getElementById('status').innerText = 'Game stopped';
+      document.getElementById('sentence').disabled = true;
     });
 
     socket.on('newGameMaster', (data) => {
@@ -59,18 +75,18 @@
       document.getElementById('status').innerText = 'New round started';
     });
 
-    socket.on('newSentence', (data) => {
-      if (myName === document.getElementById('gameMaster').innerText) {
-        const li = document.createElement('li');
-        li.innerText = `${data.name}: ${data.sentence}`;
-        document.getElementById('sentenceList').appendChild(li);
-      }
+    socket.on('gameReset', () => {
+        document.getElementById('game').style.display = 'none';
+        document.getElementById('login').style.display = 'block';
+        document.getElementById('sentence').value = '';
+        document.getElementById('sentenceList').innerHTML = '';
+        document.getElementById('status').innerText = 'Game reset';
+        myName = null;
     });
 
-    socket.on('gameStopped', () => {
-      document.getElementById('status').innerText = 'Game stopped by Game Master';
-      document.getElementById('sentence').disabled = true;
-    });
+    function resetGame() {
+        socket.emit('resetGame');
+    }
 
     function updateUI(data) {
       document.getElementById('userList').innerText = data.users.join(', ');
@@ -78,12 +94,12 @@
       document.getElementById('playerView').style.display = myName === data.gameMaster ? 'none' : 'block';
       document.getElementById('gmView').style.display = myName === data.gameMaster ? 'block' : 'none';
       document.getElementById('sentence').disabled = false;
-      document.getElementById('status').innerText = '';
     }
 
     function submitSentence() {
       const sentence = document.getElementById('sentence').value;
       if (sentence) {
+        console.log('Submitting sentence:', sentence); // Debug
         socket.emit('submitSentence', sentence);
         document.getElementById('sentence').disabled = true;
       }

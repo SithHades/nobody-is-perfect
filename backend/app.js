@@ -37,7 +37,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submitSentence', (sentence) => {
-    console.log('Sentence submitted:', { name: socket.name, sentence }); // Debug log
+    console.log('Sentence submitted:', { name: socket.name, sentence });
     if (gameState === 'playing' && socket.name !== users[currentGameMasterIndex]) {
       sentences[socket.name] = sentence;
       io.to(users[currentGameMasterIndex]).emit('newSentence', { name: socket.name, sentence });
@@ -60,6 +60,15 @@ io.on('connection', (socket) => {
       gameState = 'playing';
       io.emit('newGameMaster', { gameMaster: users[currentGameMasterIndex] });
     }
+  });
+
+  socket.on('resetGame', () => {
+    console.log('Game reset requested by:', socket.name);
+    users = [];
+    sentences = {};
+    currentGameMasterIndex = 0;
+    gameState = 'waiting';
+    io.emit('gameReset');
   });
 
   socket.on('disconnect', () => {
