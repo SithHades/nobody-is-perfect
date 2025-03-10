@@ -55,12 +55,15 @@
     socket.on('updateUsers', (data) => updateUI(data));
 
     socket.on('newSentence', (data) => {
-      console.log('New sentence received:', data); // Debug
-      if (myName === document.getElementById('gameMaster').innerText) {
+        console.log('New sentence received:', data); // Debug
+        if (myName === document.getElementById('gameMaster').innerText) {
+        console.log('I am the GM, updating sentence list'); // Debug
         const li = document.createElement('li');
         li.innerText = `${data.name}: ${data.sentence}`;
         document.getElementById('sentenceList').appendChild(li);
-      }
+        } else {
+        console.log('Not the GM, ignoring sentence'); // Debug
+        }
     });
 
     socket.on('gameStopped', () => {
@@ -89,13 +92,14 @@
     }
 
     function updateUI(data) {
-      document.getElementById('userList').innerText = data.users.join(', ');
-      document.getElementById('gameMaster').innerText = data.gameMaster;
-      document.getElementById('playerView').style.display = myName === data.gameMaster ? 'none' : 'block';
-      document.getElementById('gmView').style.display = myName === data.gameMaster ? 'block' : 'none';
-      document.getElementById('sentence').disabled = false;
+        console.log('Updating UI:', data); // Debug
+        document.getElementById('userList').innerText = data.users.join(', ');
+        document.getElementById('gameMaster').innerText = data.gameMaster;
+        document.getElementById('playerView').style.display = myName === data.gameMaster ? 'none' : 'block';
+        document.getElementById('gmView').style.display = myName === data.gameMaster ? 'block' : 'none';
+        document.getElementById('sentence').disabled = false;
     }
-
+    
     function submitSentence() {
       const sentence = document.getElementById('sentence').value;
       if (sentence) {

@@ -5,10 +5,7 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: 'https://nip.kncklab.com', // Frontend domain
-    methods: ['GET', 'POST']
-  }
+  cors: { origin: 'https://nip.kncklab.com', methods: ['GET', 'POST'] }
 });
 
 app.use(express.static('public'));
@@ -17,21 +14,23 @@ const PASSWORD = 'Ledi2025';
 let users = [];
 let currentGameMasterIndex = 0;
 let sentences = {};
-let gameState = 'waiting'; // waiting, playing, stopped
+let gameState = 'waiting';
+let userSocketMap = {}; // Map usernames to socket IDs
 
 io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id); // Debug log
+  console.log('New client connected:', socket.id);
 
   socket.on('login', (data) => {
-    console.log('Login attempt:', data); // Debug log
+    console.log('Login attempt:', data);
     if (data.password === PASSWORD && data.name && !users.includes(data.name)) {
       users.push(data.name);
       socket.name = data.name;
-      console.log('Login success for:', data.name); // Debug log
+      userSocketMap[data.name] = socket.id; // Store socket ID
+      console.log('Login success for:', data.name);
       socket.emit('loginSuccess', { users, gameMaster: users[currentGameMasterIndex] });
       io.emit('updateUsers', { users, gameMaster: users[currentGameMasterIndex] });
     } else {
-      console.log('Login failed for:', data.name); // Debug log
+      console.log('Login failed for:', data.name);
       socket.emit('loginFailed');
     }
   });
@@ -40,12 +39,14 @@ io.on('connection', (socket) => {
     console.log('Sentence submitted:', { name: socket.name, sentence });
     if (gameState === 'playing' && socket.name !== users[currentGameMasterIndex]) {
       sentences[socket.name] = sentence;
-      io.to(users[currentGameMasterIndex]).emit('newSentence', { name: socket.name, sentence });
+      const gmSocketId = userSocketMap[users[currentGameMasterIndex]];
+      console.log('Emitting to GM:', users[currentGameMasterIndex], 'Socket ID:', gmSocketId); // Debug
+      io.to(gmSocketId).emit('newSentence', { name: socket.name, sentence });
     }
   });
 
   socket.on('stopGame', () => {
-    console.log('Stop game requested by:', socket.name); // Debug log
+    console.log('Stop game requested by:', socket.name);
     if (socket.name === users[currentGameMasterIndex] && gameState === 'playing') {
       gameState = 'stopped';
       io.emit('gameStopped');
@@ -53,7 +54,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('doneGame', () => {
-    console.log('Done game requested by:', socket.name); // Debug log
+    console.log('Done game requested by:', socket.name);
     if (socket.name === users[currentGameMasterIndex] && gameState === 'stopped') {
       currentGameMasterIndex = (currentGameMasterIndex + 1) % users.length;
       sentences = {};
@@ -66,15 +67,17 @@ io.on('connection', (socket) => {
     console.log('Game reset requested by:', socket.name);
     users = [];
     sentences = {};
+    userSocketMap = {};
     currentGameMasterIndex = 0;
     gameState = 'waiting';
     io.emit('gameReset');
   });
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.name); // Debug log
+    console.log('Client disconnected:', socket.name);
     if (socket.name) {
       users = users.filter(u => u !== socket.name);
+      delete userSocketMap[socket.name];
       if (users.length > 0) {
         currentGameMasterIndex = currentGameMasterIndex % users.length;
         io.emit('updateUsers', { users, gameMaster: users[currentGameMasterIndex] });
