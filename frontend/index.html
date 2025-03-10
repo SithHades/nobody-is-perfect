@@ -16,6 +16,7 @@
     <div id="playerView" style="display:none;">
       <input type="text" id="sentence" placeholder="Write your sentence">
       <button onclick="submitSentence()">Submit</button>
+      <p id="playerStatus"></p>
     </div>
     <div id="gmView" style="display:none;">
       <button onclick="stopGame()">STOP</button>
@@ -31,10 +32,15 @@
   <script>
     const socket = io('https://nip-backend.kncklab.com');
     let myName;
+    let isGameMaster = false;
 
     function login() {
       const password = document.getElementById('password').value;
       const name = document.getElementById('name').value;
+      if (!name || name.trim() === '') {
+        document.getElementById('loginError').innerText = 'Please enter a name';
+        return;
+      }
       console.log('Attempting login:', { password, name });
       socket.emit('login', { password, name });
     }
@@ -55,15 +61,13 @@
     socket.on('updateUsers', (data) => updateUI(data));
 
     socket.on('newSentence', (data) => {
-        console.log('New sentence received:', data); // Debug
-        if (myName === document.getElementById('gameMaster').innerText) {
-        console.log('I am the GM, updating sentence list'); // Debug
+      console.log('New sentence received:', data);
+      if (isGameMaster) {
+        console.log('I am the GM, updating sentence list');
         const li = document.createElement('li');
         li.innerText = `${data.name}: ${data.sentence}`;
         document.getElementById('sentenceList').appendChild(li);
-        } else {
-        console.log('Not the GM, ignoring sentence'); // Debug
-        }
+      }
     });
 
     socket.on('gameStopped', () => {
@@ -76,45 +80,73 @@
       document.getElementById('sentence').value = '';
       document.getElementById('sentenceList').innerHTML = '';
       document.getElementById('status').innerText = 'New round started';
+      document.getElementById('playerStatus').innerText = '';
     });
 
     socket.on('gameReset', () => {
-        document.getElementById('game').style.display = 'none';
-        document.getElementById('login').style.display = 'block';
-        document.getElementById('sentence').value = '';
-        document.getElementById('sentenceList').innerHTML = '';
-        document.getElementById('status').innerText = 'Game reset';
-        myName = null;
+      document.getElementById('game').style.display = 'none';
+      document.getElementById('login').style.display = 'block';
+      document.getElementById('sentence').value = '';
+      document.getElementById('sentenceList').innerHTML = '';
+      document.getElementById('status').innerText = 'Game reset';
+      document.getElementById('playerStatus').innerText = '';
+      myName = null;
+      isGameMaster = false;
+    });
+
+    socket.on('sentenceSubmitted', () => {
+      document.getElementById('playerStatus').innerText = 'Your sentence has been submitted';
     });
 
     function resetGame() {
-        socket.emit('resetGame');
+      socket.emit('resetGame');
     }
 
     function updateUI(data) {
-        console.log('Updating UI:', data); // Debug
-        document.getElementById('userList').innerText = data.users.join(', ');
-        document.getElementById('gameMaster').innerText = data.gameMaster;
-        document.getElementById('playerView').style.display = myName === data.gameMaster ? 'none' : 'block';
-        document.getElementById('gmView').style.display = myName === data.gameMaster ? 'block' : 'none';
-        document.getElementById('sentence').disabled = false;
+      console.log('Updating UI:', data);
+      document.getElementById('userList').innerText = data.users.join(', ');
+      document.getElementById('gameMaster').innerText = data.gameMaster;
+      
+      isGameMaster = myName === data.gameMaster;
+      
+      document.getElementById('playerView').style.display = isGameMaster ? 'none' : 'block';
+      document.getElementById('gmView').style.display = isGameMaster ? 'block' : 'none';
+      document.getElementById('sentence').disabled = false;
+      
+      // If game master changes, clear sentence list
+      if (isGameMaster) {
+        document.getElementById('sentenceList').innerHTML = '';
+        
+        // Load existing sentences if there are any
+        if (data.sentences) {
+          Object.entries(data.sentences).forEach(([name, sentence]) => {
+            const li = document.createElement('li');
+            li.innerText = `${name}: ${sentence}`;
+            document.getElementById('sentenceList').appendChild(li);
+          });
+        }
+      }
     }
     
     function submitSentence() {
       const sentence = document.getElementById('sentence').value;
-      if (sentence) {
-        console.log('Submitting sentence:', sentence); // Debug
+      if (sentence && sentence.trim() !== '') {
+        console.log('Submitting sentence:', sentence);
         socket.emit('submitSentence', sentence);
         document.getElementById('sentence').disabled = true;
       }
     }
 
     function stopGame() {
-      socket.emit('stopGame');
+      if (isGameMaster) {
+        socket.emit('stopGame');
+      }
     }
 
     function doneGame() {
-      socket.emit('doneGame');
+      if (isGameMaster) {
+        socket.emit('doneGame');
+      }
     }
   </script>
 </body>

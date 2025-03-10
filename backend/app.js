@@ -27,8 +27,19 @@ io.on('connection', (socket) => {
       socket.name = data.name;
       userSocketMap[data.name] = socket.id; // Store socket ID
       console.log('Login success for:', data.name);
-      socket.emit('loginSuccess', { users, gameMaster: users[currentGameMasterIndex] });
-      io.emit('updateUsers', { users, gameMaster: users[currentGameMasterIndex] });
+      
+      // Send current game state including sentences to the new user
+      socket.emit('loginSuccess', { 
+        users, 
+        gameMaster: users[currentGameMasterIndex],
+        sentences: socket.name === users[currentGameMasterIndex] ? sentences : null
+      });
+      
+      // Update all users about the new player
+      io.emit('updateUsers', { 
+        users, 
+        gameMaster: users[currentGameMasterIndex] 
+      });
     } else {
       console.log('Login failed for:', data.name);
       socket.emit('loginFailed');
@@ -36,18 +47,29 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submitSentence', (sentence) => {
+    if (!socket.name) return;
+    
     console.log('Sentence submitted:', { name: socket.name, sentence });
-    if (gameState === 'playing' && socket.name !== users[currentGameMasterIndex]) {
+    if (socket.name !== users[currentGameMasterIndex]) {
       sentences[socket.name] = sentence;
+      
+      // Confirm to the player their sentence was received
+      socket.emit('sentenceSubmitted');
+      
+      // Send to the game master
       const gmSocketId = userSocketMap[users[currentGameMasterIndex]];
-      console.log('Emitting to GM:', users[currentGameMasterIndex], 'Socket ID:', gmSocketId); // Debug
-      io.to(gmSocketId).emit('newSentence', { name: socket.name, sentence });
+      if (gmSocketId) {
+        console.log('Emitting to GM:', users[currentGameMasterIndex], 'Socket ID:', gmSocketId);
+        io.to(gmSocketId).emit('newSentence', { name: socket.name, sentence });
+      } else {
+        console.error('Game master socket ID not found:', users[currentGameMasterIndex]);
+      }
     }
   });
 
   socket.on('stopGame', () => {
     console.log('Stop game requested by:', socket.name);
-    if (socket.name === users[currentGameMasterIndex] && gameState === 'playing') {
+    if (socket.name === users[currentGameMasterIndex]) {
       gameState = 'stopped';
       io.emit('gameStopped');
     }
@@ -55,11 +77,14 @@ io.on('connection', (socket) => {
 
   socket.on('doneGame', () => {
     console.log('Done game requested by:', socket.name);
-    if (socket.name === users[currentGameMasterIndex] && gameState === 'stopped') {
+    if (socket.name === users[currentGameMasterIndex]) {
       currentGameMasterIndex = (currentGameMasterIndex + 1) % users.length;
       sentences = {};
       gameState = 'playing';
-      io.emit('newGameMaster', { gameMaster: users[currentGameMasterIndex] });
+      io.emit('newGameMaster', { 
+        users,
+        gameMaster: users[currentGameMasterIndex] 
+      });
     }
   });
 
@@ -76,11 +101,22 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.name);
     if (socket.name) {
+      const wasGameMaster = socket.name === users[currentGameMasterIndex];
       users = users.filter(u => u !== socket.name);
       delete userSocketMap[socket.name];
+      delete sentences[socket.name];
+      
       if (users.length > 0) {
-        currentGameMasterIndex = currentGameMasterIndex % users.length;
-        io.emit('updateUsers', { users, gameMaster: users[currentGameMasterIndex] });
+        // If the game master disconnected, choose a new one
+        if (wasGameMaster || currentGameMasterIndex >= users.length) {
+          currentGameMasterIndex = currentGameMasterIndex % users.length;
+        }
+        
+        io.emit('updateUsers', { 
+          users, 
+          gameMaster: users[currentGameMasterIndex],
+          sentences: wasGameMaster ? sentences : null
+        });
       } else {
         currentGameMasterIndex = 0;
         sentences = {};
