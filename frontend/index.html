@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nobody is Perfect</title>
+</head>
+<body>
+  <div id="login">
+    Password: <input type="password" id="password"><br>
+    Name: <input type="text" id="name"><br>
+    <button onclick="login()">Login</button>
+    <p id="loginError" style="color:red;"></p>
+  </div>
+  <div id="game" style="display:none;">
+    <p>Users: <span id="userList"></span></p>
+    <p>Game Master: <span id="gameMaster"></span></p>
+    <div id="playerView" style="display:none;">
+      <input type="text" id="sentence" placeholder="Write your sentence">
+      <button onclick="submitSentence()">Submit</button>
+    </div>
+    <div id="gmView" style="display:none;">
+      <button onclick="stopGame()">STOP</button>
+      <button onclick="doneGame()">DONE</button>
+      <p>Sentences:</p>
+      <ul id="sentenceList"></ul>
+    </div>
+    <p id="status"></p>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let myName;
+
+    function login() {
+      const password = document.getElementById('password').value;
+      const name = document.getElementById('name').value;
+      socket.emit('login', { password, name });
+    }
+
+    socket.on('loginSuccess', (data) => {
+      myName = document.getElementById('name').value;
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+      updateUI(data);
+    });
+
+    socket.on('loginFailed', () => {
+      document.getElementById('loginError').innerText = 'Wrong password or name taken';
+    });
+
+    socket.on('updateUsers', (data) => {
+      updateUI(data);
+    });
+
+    socket.on('newGameMaster', (data) => {
+      updateUI(data);
+      document.getElementById('sentence').value = '';
+      document.getElementById('sentenceList').innerHTML = '';
+      document.getElementById('status').innerText = 'New round started';
+    });
+
+    socket.on('newSentence', (data) => {
+      if (myName === document.getElementById('gameMaster').innerText) {
+        const li = document.createElement('li');
+        li.innerText = `${data.name}: ${data.sentence}`;
+        document.getElementById('sentenceList').appendChild(li);
+      }
+    });
+
+    socket.on('gameStopped', () => {
+      document.getElementById('status').innerText = 'Game stopped by Game Master';
+      document.getElementById('sentence').disabled = true;
+    });
+
+    function updateUI(data) {
+      document.getElementById('userList').innerText = data.users.join(', ');
+      document.getElementById('gameMaster').innerText = data.gameMaster;
+      document.getElementById('playerView').style.display = myName === data.gameMaster ? 'none' : 'block';
+      document.getElementById('gmView').style.display = myName === data.gameMaster ? 'block' : 'none';
+      document.getElementById('sentence').disabled = false;
+      document.getElementById('status').innerText = '';
+    }
+
+    function submitSentence() {
+      const sentence = document.getElementById('sentence').value;
+      if (sentence) {
+        socket.emit('submitSentence', sentence);
+        document.getElementById('sentence').disabled = true;
+      }
+    }
+
+    function stopGame() {
+      socket.emit('stopGame');
+    }
+
+    function doneGame() {
+      socket.emit('doneGame');
+    }
+  </script>
+</body>
+</html>
