@@ -58,31 +58,31 @@ function updateUIForGameState() {
     if (isGameMaster) {
         switch(gameState) {
             case 'waiting':
-                gameStatusDisplay.textContent = 'Game is waiting to start. Click "Start Round" to begin.';
+                gameStatusDisplay.textContent = 'Das spiel ist bereit zu beginnen. Klicke "Starte Runde" um zu beginnen.';
                 break;
             case 'collecting':
-                gameStatusDisplay.textContent = 'Players are submitting sentences. Click "Stop Submissions" when ready.';
+                gameStatusDisplay.textContent = 'Die Spieler schreiben ihre Sätze. Klicke "Stop!" wenn du diesen Zug stoppen möchtest.';
                 break;
             case 'reviewing':
-                gameStatusDisplay.textContent = 'Review the sentences. Click "Next Master" when done.';
+                gameStatusDisplay.textContent = 'Prüfe die Sätze und lese sie vor. Klicke "Nächster Game Master" wenn du fertig bist.';
                 break;
             case 'completed':
-                gameStatusDisplay.textContent = 'Round complete. Click "Start Round" to begin a new round.';
+                gameStatusDisplay.textContent = 'Runde zuende. Klicke "Starte Runde" um eine neue zu beginnen.';
                 break;
         }
     } else {
         switch(gameState) {
             case 'waiting':
-                gameStatusDisplay.textContent = 'Waiting for the game to start...';
+                gameStatusDisplay.textContent = 'Warten bis das Spiel beginnt...';
                 break;
             case 'collecting':
-                gameStatusDisplay.textContent = 'Submit your sentence!';
+                gameStatusDisplay.textContent = 'Schreibe deinen Satz!';
                 break;
             case 'reviewing':
-                gameStatusDisplay.textContent = `${currentGameMaster} is reviewing the sentences.`;
+                gameStatusDisplay.textContent = `${currentGameMaster} sammelt die Sätze.`;
                 break;
             case 'completed':
-                gameStatusDisplay.textContent = `Round complete. ${currentGameMaster} is the new Game Master.`;
+                gameStatusDisplay.textContent = `Runde zuende. ${currentGameMaster} ist der neue Game Master.`;
                 break;
         }
     }
@@ -198,7 +198,7 @@ doneGameBtn.addEventListener('click', function() {
 });
 
 resetGameBtn.addEventListener('click', function() {
-    if (confirm('Are you sure you want to reset the game? All players will be disconnected.')) {
+    if (confirm('Bist du dir sicher, dass du das Spiel zurücksetzen möchtest? Alle Spieler und Sätze werden zurückgesetzt.')) {
         socket.emit('resetGame');
     }
 });
@@ -258,7 +258,7 @@ socket.on('gameStateUpdate', (data) => {
 });
 
 socket.on('sentenceSubmitted', () => {
-    showNotification('Sentence submitted successfully!');
+    showNotification('Satz erfolgreich eingereicht!');
 });
 
 socket.on('submissionRejected', (data) => {
@@ -311,7 +311,7 @@ socket.on('masterUpdate', (data) => {
 });
 
 socket.on('gameReset', () => {
-    showNotification('Game has been reset');
+    showNotification('Spiel zurückgesetzt');
     setTimeout(() => {
         window.location.reload();
     }, 2000);
@@ -319,7 +319,7 @@ socket.on('gameReset', () => {
 
 // Handle disconnection
 socket.on('disconnect', () => {
-    showNotification('Disconnected from server. Trying to reconnect...');
+    showNotification('Verbindung zum Server verloren. Versuche erneut zu verbinden...');
 });
 
 // Auto-focus the name input when the page loads
