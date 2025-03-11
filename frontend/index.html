@@ -1,415 +1,124 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nobody is Perfect</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    :root {
-      --primary: #4361ee;
-      --secondary: #3f37c9;
-      --light: #f8f9fa;
-      --dark: #212529;
-      --success: #4cc9f0;
-      --danger: #f72585;
-      --warning: #ffba08;
-      --shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    }
-    
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      line-height: 1.6;
-      color: var(--dark);
-      background-color: #f0f2f5;
-      margin: 0;
-      padding: 0;
+      touch-action: manipulation;
+      -webkit-overflow-scrolling: touch;
     }
-    
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
+    .bg-gradient {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
-    
-    .card {
-      background: white;
-      border-radius: 12px;
-      box-shadow: var(--shadow);
-      padding: 25px;
-      margin-bottom: 20px;
-    }
-    
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-      color: var(--primary);
-    }
-    
-    .input-group {
-      margin-bottom: 15px;
-    }
-    
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 600;
-    }
-    
-    input {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 16px;
-      box-sizing: border-box;
-      transition: border-color 0.3s;
-    }
-    
-    input:focus {
-      border-color: var(--primary);
-      outline: none;
-    }
-    
-    button {
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 12px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: background-color 0.3s;
-      width: 100%;
-      margin-top: 10px;
-    }
-    
-    button:hover {
-      background-color: var(--secondary);
-    }
-    
-    .btn-danger {
-      background-color: var(--danger);
-    }
-    
-    .btn-danger:hover {
-      background-color: #d61a6c;
-    }
-    
-    .btn-warning {
-      background-color: var(--warning);
-      color: var(--dark);
-    }
-    
-    .btn-warning:hover {
-      background-color: #e6a800;
-    }
-    
-    .btn-success {
-      background-color: var(--success);
-    }
-    
-    .btn-success:hover {
-      background-color: #3db6db;
-    }
-    
-    .error-text {
-      color: var(--danger);
-      font-size: 14px;
-      margin-top: 5px;
-    }
-    
-    .status-text {
-      font-weight: 600;
-      margin: 15px 0;
-      text-align: center;
-    }
-    
-    .user-list {
-      background-color: rgba(67, 97, 238, 0.1);
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    
-    .user-list p {
-      margin: 8px 0;
-    }
-    
-    .sentence-list {
-      max-height: 300px;
-      overflow-y: auto;
-      margin-top: 15px;
-    }
-    
-    .sentence-list li {
-      padding: 10px;
-      margin-bottom: 8px;
-      background-color: rgba(67, 97, 238, 0.05);
-      border-radius: 6px;
-      word-break: break-word;
-    }
-    
-    .gm-controls {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    
-    @media (max-width: 600px) {
-      .container {
-        padding: 15px;
-      }
-      
-      .card {
-        padding: 15px;
-      }
-      
-      .gm-controls {
-        flex-direction: column;
-        gap: 5px;
-      }
-      
-      .gm-controls button {
-        margin-top: 5px;
-      }
-    }
-    
-    .highlight {
-      font-weight: bold;
-      color: var(--primary);
-    }
-    
-    .fade-in {
-      animation: fadeIn 0.5s;
-    }
-    
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+    .transition-height {
+      transition: max-height 0.3s ease-in-out;
     }
   </style>
 </head>
-<body>
-  <div class="container">
-    <h1 class="header">Nobody is Perfect</h1>
-    
-    <div id="login" class="card fade-in">
-      <div class="input-group">
-        <label for="password">Password:</label>
-        <input type="password" id="password">
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+  <div class="container mx-auto px-4 py-6 max-w-lg">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="block">
+      <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <h1 class="text-2xl font-bold mb-4 text-center text-purple-800">Nobody is Perfect</h1>
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Dein Name</label>
+            <input type="text" id="name" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" required>
+          </div>
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Passwort</label>
+            <input type="password" id="password" value="Ledi2025" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" required>
+          </div>
+          <button type="submit" class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transform transition duration-200 hover:scale-105">
+            Spiel Beitreten
+          </button>
+        </form>
       </div>
-      <div class="input-group">
-        <label for="name">Name:</label>
-        <input type="text" id="name">
-      </div>
-      <button onclick="login()">Login</button>
-      <p id="loginError" class="error-text"></p>
     </div>
-    
-    <div id="game" style="display:none;" class="fade-in">
-      <div class="card user-list">
-        <p><strong>Players:</strong> <span id="userList"></span></p>
-        <p><strong>Game Master:</strong> <span id="gameMaster" class="highlight"></span></p>
-      </div>
-      
-      <div id="playerView" style="display:none;" class="card">
-        <div class="input-group">
-          <label for="sentence">Your sentence:</label>
-          <input type="text" id="sentence" placeholder="Write your sentence">
+
+    <!-- Game Screen -->
+    <div id="gameScreen" class="hidden">
+      <div class="bg-white rounded-lg shadow-lg p-6 mb-4">
+        <div class="flex justify-between items-center mb-4">
+          <h1 class="text-xl font-bold text-purple-800">Nobody is Perfect</h1>
+          <span id="playerName" class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium"></span>
         </div>
-        <button onclick="submitSentence()">Submit</button>
-        <p id="playerStatus" class="status-text"></p>
-      </div>
-      
-      <div id="gmView" style="display:none;" class="card">
-        <div class="gm-controls">
-          <button onclick="stopGame()" class="btn-danger">STOP</button>
-          <button onclick="doneGame()" class="btn-success">DONE</button>
-          <button onclick="resetGame()" class="btn-warning">RESET ALL</button>
+
+        <div id="gameStatusDisplay" class="text-sm text-gray-600 mb-3"></div>
+
+        <!-- Game Master View -->
+        <div id="gameMasterView" class="hidden space-y-4">
+          <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+            <h2 class="font-bold text-purple-800 mb-2">Du bist der Game Master</h2>
+            <p class="text-sm text-gray-700 mb-3">Du hast die Kontrolle über das Spiel und kannst alle Sätze der Spieler sehen.</p>
+            
+            <div id="gameMasterControls" class="flex flex-wrap gap-2">
+              <button id="startCollectingBtn" class="flex-1 bg-green-600 text-white py-2 px-3 rounded-md text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                Starte Runde
+              </button>
+              <button id="stopGameBtn" class="flex-1 bg-amber-500 text-white py-2 px-3 rounded-md text-sm hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                Stop!
+              </button>
+              <button id="doneGameBtn" class="flex-1 bg-blue-600 text-white py-2 px-3 rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                Nächster Game Master
+              </button>
+              <button id="resetGameBtn" class="flex-1 bg-red-600 text-white py-2 px-3 rounded-md text-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
+                Alles zurücksetzen
+              </button>
+            </div>
+          </div>
+
+          <div id="sentencesContainer" class="space-y-3 max-h-96 overflow-y-auto">
+            <h3 class="font-bold text-gray-700">Sätze der Spieler:</h3>
+            <div id="sentencesList" class="space-y-2"></div>
+          </div>
         </div>
-        <h3>Sentences:</h3>
-        <ul id="sentenceList" class="sentence-list"></ul>
+
+        <!-- Player View -->
+        <div id="playerView" class="hidden space-y-4">
+          <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <div id="waitingMessage" class="text-center py-2">
+              <p class="text-gray-700">Auf den Game Master warten, damit er das Spiel beginnt...</p>
+            </div>
+            
+            <form id="sentenceForm" class="hidden">
+              <label for="sentence" class="block text-sm font-medium text-gray-700 mb-2">Dein Satz:</label>
+              <textarea id="sentence" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" required></textarea>
+              <button type="submit" class="mt-3 w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                Satz abschicken
+              </button>
+            </form>
+            
+            <div id="sentenceSubmitted" class="hidden text-center py-4">
+              <div class="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-full">
+                <i class="fas fa-check mr-2"></i> Satz wurde abgeschickt
+              </div>
+              <p class="mt-2 text-sm text-gray-600">Warten auf andere Spieler...</p>
+            </div>
+          </div>
+        </div>
       </div>
-      
-      <p id="status" class="status-text"></p>
+
+      <!-- Players List -->
+      <div class="bg-white rounded-lg shadow-lg p-4">
+        <h2 class="font-bold text-gray-700 mb-2 flex items-center">
+          <i class="fas fa-users mr-2 text-purple-600"></i> Spieler
+          <span id="gameStateIndicator" class="ml-auto text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-700">Warten</span>
+        </h2>
+        <div id="playersList" class="divide-y divide-gray-200"></div>
+      </div>
     </div>
+
+    <!-- Notifications -->
+    <div id="notification" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg hidden opacity-0 transition-opacity duration-300"></div>
   </div>
 
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script>
-    const socket = io('https://nip-backend.kncklab.com');
-    let myName;
-    let isGameMaster = false;
-
-    function login() {
-      const password = document.getElementById('password').value;
-      const name = document.getElementById('name').value;
-      if (!name || name.trim() === '') {
-        document.getElementById('loginError').innerText = 'Please enter a name';
-        return;
-      }
-      console.log('Attempting login:', { password, name });
-      socket.emit('login', { password, name });
-    }
-
-    // Enable Enter key for login and sentence submission
-    document.getElementById('password').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        document.getElementById('name').focus();
-      }
-    });
-    
-    document.getElementById('name').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        login();
-      }
-    });
-    
-    document.getElementById('sentence').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        submitSentence();
-      }
-    });
-
-    socket.on('connect', () => {
-      console.log('Connected to backend');
-      document.getElementById('status').innerText = 'Connected to server';
-    });
-
-    socket.on('loginSuccess', (data) => {
-      myName = document.getElementById('name').value;
-      document.getElementById('login').style.display = 'none';
-      document.getElementById('game').style.display = 'block';
-      document.getElementById('status').innerText = 'Login successful';
-      updateUI(data);
-    });
-
-    socket.on('loginFailed', () => {
-      document.getElementById('loginError').innerText = 'Wrong password or name already taken';
-    });
-
-    socket.on('updateUsers', (data) => updateUI(data));
-
-    socket.on('newSentence', (data) => {
-      console.log('New sentence received:', data);
-      if (isGameMaster) {
-        console.log('I am the GM, updating sentence list');
-        const li = document.createElement('li');
-        li.innerText = `${data.name}: ${data.sentence}`;
-        li.className = 'fade-in';
-        document.getElementById('sentenceList').appendChild(li);
-      }
-    });
-
-    socket.on('gameStopped', () => {
-      document.getElementById('status').innerText = 'Game stopped by Game Master';
-      document.getElementById('sentence').disabled = true;
-      if (!isGameMaster) {
-        document.getElementById('playerStatus').innerText = 'Game has been stopped';
-      }
-    });
-
-    socket.on('newGameMaster', (data) => {
-      updateUI(data);
-      document.getElementById('sentence').value = '';
-      document.getElementById('sentenceList').innerHTML = '';
-      document.getElementById('status').innerText = 'New round started!';
-      document.getElementById('playerStatus').innerText = '';
-      if (!isGameMaster) {
-        document.getElementById('sentence').disabled = false;
-        document.getElementById('playerStatus').innerText = 'Write your sentence';
-      }
-    });
-
-    socket.on('gameReset', () => {
-      document.getElementById('game').style.display = 'none';
-      document.getElementById('login').style.display = 'block';
-      document.getElementById('sentence').value = '';
-      document.getElementById('sentenceList').innerHTML = '';
-      document.getElementById('status').innerText = '';
-      document.getElementById('playerStatus').innerText = '';
-      document.getElementById('password').value = '';
-      document.getElementById('name').value = '';
-      document.getElementById('loginError').innerText = '';
-      myName = null;
-      isGameMaster = false;
-    });
-
-    socket.on('sentenceSubmitted', () => {
-      document.getElementById('playerStatus').innerText = 'Your sentence has been submitted';
-    });
-
-    socket.on('disconnect', () => {
-      document.getElementById('status').innerText = 'Disconnected from server. Please refresh the page.';
-    });
-
-    function resetGame() {
-      if (confirm('Are you sure you want to reset the game for everyone?')) {
-        socket.emit('resetGame');
-      }
-    }
-
-    function updateUI(data) {
-      console.log('Updating UI:', data);
-      document.getElementById('userList').innerText = data.users.join(', ');
-      document.getElementById('gameMaster').innerText = data.gameMaster;
-      
-      isGameMaster = myName === data.gameMaster;
-      
-      document.getElementById('playerView').style.display = isGameMaster ? 'none' : 'block';
-      document.getElementById('gmView').style.display = isGameMaster ? 'block' : 'none';
-      document.getElementById('sentence').disabled = false;
-      
-      // If game master changes, clear sentence list
-      if (isGameMaster) {
-        document.getElementById('sentenceList').innerHTML = '';
-        document.getElementById('status').innerText = 'You are the Game Master!';
-        
-        // Load existing sentences if there are any
-        if (data.sentences) {
-          Object.entries(data.sentences).forEach(([name, sentence]) => {
-            const li = document.createElement('li');
-            li.innerText = `${name}: ${sentence}`;
-            document.getElementById('sentenceList').appendChild(li);
-          });
-        }
-      } else {
-        if (data.gameMaster) {
-          document.getElementById('status').innerText = `${data.gameMaster} is the Game Master`;
-        }
-      }
-    }
-    
-    function submitSentence() {
-      const sentence = document.getElementById('sentence').value;
-      if (sentence && sentence.trim() !== '') {
-        console.log('Submitting sentence:', sentence);
-        socket.emit('submitSentence', sentence);
-        document.getElementById('sentence').disabled = true;
-        document.getElementById('playerStatus').innerText = 'Submitting...';
-      } else {
-        document.getElementById('playerStatus').innerText = 'Please enter a sentence';
-        setTimeout(() => {
-          document.getElementById('playerStatus').innerText = '';
-        }, 2000);
-      }
-    }
-
-    function stopGame() {
-      if (isGameMaster) {
-        if (confirm('Are you sure you want to stop the game?')) {
-          socket.emit('stopGame');
-        }
-      }
-    }
-
-    function doneGame() {
-      if (isGameMaster) {
-        if (confirm('Are you done collecting sentences?')) {
-          socket.emit('doneGame');
-        }
-      }
-    }
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
