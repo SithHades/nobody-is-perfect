@@ -137,6 +137,9 @@ io.on('connection', (socket) => {
     
     // Mark round as completed
     gameState = 'completed';
+
+    // Reset sentences
+    sentences = {}
     
     // Notify all clients about the new game master
     broadcastGameState();
