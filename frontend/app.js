@@ -1,5 +1,15 @@
-// Connect to the server
-const socket = io('https://nip-backend.kncklab.com');
+// Connect to the server with reconnection options
+const socket = io('https://nip-backend.kncklab.com', {
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000,
+  autoConnect: true
+});
+
+// Hard-coded password to match backend
+const PASSWORD = 'Ledi2025';
 
 // DOM Elements
 const loginScreen = document.getElementById('loginScreen');
@@ -19,6 +29,9 @@ const waitingMessage = document.getElementById('waitingMessage');
 const notification = document.getElementById('notification');
 const gameStatusDisplay = document.getElementById('gameStatusDisplay');
 const gameStateIndicator = document.getElementById('gameStateIndicator');
+const connectionStatus = document.getElementById('connectionStatus');
+const connectionDot = document.getElementById('connectionDot');
+const connectionText = document.getElementById('connectionText');
 
 // Game Master Controls
 const startCollectingBtn = document.getElementById('startCollectingBtn');
@@ -27,11 +40,13 @@ const doneGameBtn = document.getElementById('doneGameBtn');
 const resetGameBtn = document.getElementById('resetGameBtn');
 
 // Game state variables
-let currentUser = '';
+let currentUser = localStorage.getItem('nip_username') || '';
 let isGameMaster = false;
 let gameState = 'waiting';
 let users = [];
 let currentGameMaster = '';
+let reconnecting = false;
+let hasSubmittedSentence = false;
 
 // Initialize UI based on current game state
 function updateUIForGameState() {
@@ -121,6 +136,33 @@ function showNotification(message, duration = 3000) {
     }, duration);
 }
 
+// Handle reconnection
+function handleReconnection() {
+    if (currentUser) {
+        reconnecting = true;
+        // Auto-login with saved credentials
+        socket.emit('reconnect', { 
+            name: currentUser,
+            password: PASSWORD
+        });
+        showNotification('Verbindung wiederhergestellt. Versuche erneut anzumelden...', 5000);
+        
+        // If we were already in the game
+        if (gameScreen.classList.contains('hidden') === false) {
+            // If we had submitted a sentence before, make sure it's still there
+            const savedSentence = localStorage.getItem('nip_sentence');
+            if (savedSentence && gameState === 'collecting' && !isGameMaster && !hasSubmittedSentence) {
+                // Try to resubmit the sentence after reconnection
+                setTimeout(() => {
+                    socket.emit('submitSentence', savedSentence);
+                    sentenceForm.classList.add('hidden');
+                    sentenceSubmitted.classList.remove('hidden');
+                }, 2000);
+            }
+        }
+    }
+}
+
 // Update the players list in the UI
 function updatePlayersList() {
     playersList.innerHTML = '';
@@ -167,6 +209,8 @@ loginForm.addEventListener('submit', function(e) {
     const password = passwordInput.value;
     
     if (name) {
+        // Save username in localStorage for reconnection
+        localStorage.setItem('nip_username', name);
         socket.emit('login', { name, password });
     }
 });
@@ -177,6 +221,10 @@ sentenceForm.addEventListener('submit', function(e) {
     const sentence = sentenceInput.value.trim();
     
     if (sentence) {
+        // Store the sentence locally in case of disconnection
+        localStorage.setItem('nip_sentence', sentence);
+        hasSubmittedSentence = true;
+        
         socket.emit('submitSentence', sentence);
         sentenceInput.value = '';
         sentenceForm.classList.add('hidden');
@@ -194,6 +242,9 @@ stopGameBtn.addEventListener('click', function() {
 });
 
 doneGameBtn.addEventListener('click', function() {
+    // Clear any saved sentence when moving to the next game master
+    localStorage.removeItem('nip_sentence');
+    hasSubmittedSentence = false;
     socket.emit('doneGame');
 });
 
@@ -203,9 +254,39 @@ resetGameBtn.addEventListener('click', function() {
     }
 });
 
+// Update connection status UI
+function updateConnectionStatus(connected, message) {
+    connectionStatus.classList.remove('hidden');
+    
+    if (connected) {
+        connectionDot.className = 'w-2 h-2 bg-green-400 rounded-full mr-2';
+        connectionText.textContent = message || 'Verbunden';
+        connectionStatus.classList.remove('bg-red-800', 'bg-amber-800');
+        connectionStatus.classList.add('bg-gray-800');
+    } else {
+        connectionDot.className = 'w-2 h-2 bg-red-400 rounded-full mr-2';
+        connectionText.textContent = message || 'Getrennt';
+        connectionStatus.classList.remove('bg-gray-800', 'bg-amber-800');
+        connectionStatus.classList.add('bg-red-800');
+    }
+    
+    // Hide after 5 seconds if connected
+    if (connected) {
+        setTimeout(() => {
+            connectionStatus.classList.add('hidden');
+        }, 5000);
+    }
+}
+
 // Socket event handlers
 socket.on('connect', () => {
     console.log('Connected to server');
+    updateConnectionStatus(true);
+    
+    // If we were reconnecting, try to rejoin automatically
+    if (reconnecting && currentUser) {
+        handleReconnection();
+    }
 });
 
 socket.on('initialState', (data) => {
@@ -247,17 +328,43 @@ socket.on('gameStateUpdate', (data) => {
     users = data.users;
     currentGameMaster = data.gameMaster;
     
+    // Make sure reconnected users can see the game
+    if (reconnecting && gameScreen.classList.contains('hidden')) {
+        loginScreen.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+        reconnecting = false;
+    }
+    
+    // Check if we exist in the users list, if not and we have a username, try to rejoin
+    if (currentUser && !users.includes(currentUser)) {
+        socket.emit('reconnect', { 
+            name: currentUser,
+            password: PASSWORD
+        });
+    }
+    
     isGameMaster = currentUser === currentGameMaster;
     
     // Show the right view based on role
     gameMasterView.classList.toggle('hidden', !isGameMaster);
     playerView.classList.toggle('hidden', isGameMaster);
     
+    // Reset hasSubmittedSentence when game state changes to collecting
+    if (gameState === 'collecting' && !isGameMaster) {
+        hasSubmittedSentence = false;
+        // Check if we have a saved sentence to submit
+        const savedSentence = localStorage.getItem('nip_sentence');
+        if (savedSentence && !sentenceSubmitted.classList.contains('hidden')) {
+            hasSubmittedSentence = true;
+        }
+    }
+    
     updatePlayersList();
     updateUIForGameState();
 });
 
 socket.on('sentenceSubmitted', () => {
+    hasSubmittedSentence = true;
     showNotification('Satz erfolgreich eingereicht!');
 });
 
@@ -319,10 +426,67 @@ socket.on('gameReset', () => {
 
 // Handle disconnection
 socket.on('disconnect', () => {
-    showNotification('Verbindung zum Server verloren. Versuche erneut zu verbinden...');
+    showNotification('Verbindung zum Server verloren. Versuche erneut zu verbinden...', 10000);
+    updateConnectionStatus(false, 'Verbinde...');
+    reconnecting = true;
+    // We don't need to do anything else - socket.io will try to reconnect automatically
 });
 
-// Auto-focus the name input when the page loads
+// Reconnection events
+socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log(`Reconnection attempt ${attemptNumber}`);
+    updateConnectionStatus(false, `Versuch ${attemptNumber}...`);
+    if (attemptNumber % 3 === 0) { // Only show notification every 3 attempts to avoid spam
+        showNotification(`Verbindungsversuch ${attemptNumber}...`, 2000);
+    }
+});
+
+socket.on('reconnect', () => {
+    console.log('Reconnected to server');
+    updateConnectionStatus(true, 'Wieder verbunden!');
+    handleReconnection();
+});
+
+// Handle temporary disconnections of other users
+socket.on('userTemporarilyDisconnected', (data) => {
+    if (data.username && data.username !== currentUser) {
+        showNotification(data.message, 3000);
+    }
+});
+
+// Handle connection errors
+socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+    updateConnectionStatus(false, 'Verbindungsfehler');
+    showNotification('Verbindungsfehler: ' + error.message, 5000);
+});
+
+// Add a ping event to keep the connection alive
+setInterval(() => {
+    if (socket.connected && currentUser) {
+        socket.emit('keepAlive', { name: currentUser });
+    }
+}, 30000); // Every 30 seconds
+
+// Auto-focus the name input or attempt auto-login when the page loads
 window.addEventListener('load', () => {
-    nameInput.focus();
+    // Try to auto-login if we have a username stored
+    const savedUsername = localStorage.getItem('nip_username');
+    if (savedUsername) {
+        nameInput.value = savedUsername;
+        passwordInput.value = PASSWORD;
+        
+        // Only attempt auto-login if the socket is connected
+        if (socket.connected) {
+            socket.emit('login', { 
+                name: savedUsername, 
+                password: PASSWORD 
+            });
+            showNotification('Versuche automatisch anzumelden...', 2000);
+        } else {
+            nameInput.focus();
+        }
+    } else {
+        nameInput.focus();
+    }
 });
