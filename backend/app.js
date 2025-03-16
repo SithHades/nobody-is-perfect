@@ -23,6 +23,7 @@ let sentences = {};
 let gameState = 'waiting'; // 'waiting', 'collecting', 'reviewing', 'completed'
 let userSocketMap = {}; // Map usernames to socket IDs
 let disconnectedUsers = {}; // Store info about temporarily disconnected users
+let disconnectedUsersList = []; // Simple list of disconnected usernames for frontend
 let inactiveTimeout = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 // Helper function to broadcast game state to all connected clients
@@ -30,7 +31,8 @@ function broadcastGameState() {
   io.emit('gameStateUpdate', {
     gameState: gameState,
     users: users,
-    gameMaster: users[currentGameMasterIndex] || null
+    gameMaster: users[currentGameMasterIndex] || null,
+    disconnectedUsers: disconnectedUsersList
   });
 }
 
@@ -92,7 +94,8 @@ io.on('connection', (socket) => {
       } else {
         console.log('Login failed for:', data.name, '- name already in use');
         socket.emit('loginFailed', {
-          reason: 'nameInUse'
+          reason: 'nameInUse',
+          name: data.name
         });
       }
     } else {
@@ -113,6 +116,9 @@ io.on('connection', (socket) => {
         clearTimeout(disconnectedUsers[data.name].timeoutId);
         delete disconnectedUsers[data.name];
         
+        // Remove from disconnected users list
+        disconnectedUsersList = disconnectedUsersList.filter(u => u !== data.name);
+        
         // If they're not in the users list, add them back
         if (!users.includes(data.name)) {
           users.push(data.name);
@@ -128,7 +134,8 @@ io.on('connection', (socket) => {
         socket.emit('loginSuccess', { 
           users: users, 
           gameMaster: users[currentGameMasterIndex],
-          gameState: gameState
+          gameState: gameState,
+          disconnectedUsers: disconnectedUsersList
         });
         
         // Update all users
@@ -262,11 +269,70 @@ io.on('connection', (socket) => {
     users = [];
     sentences = {};
     userSocketMap = {};
+    disconnectedUsers = {};
+    disconnectedUsersList = [];
     currentGameMasterIndex = 0;
     gameState = 'waiting';
     
     // Notify all clients about the reset
     io.emit('gameReset');
+  });
+  
+  // Allow the game master to remove a player
+  socket.on('removePlayer', (data) => {
+    console.log('Remove player requested by:', socket.name, 'for player:', data.playerName);
+    if (socket.name !== users[currentGameMasterIndex]) {
+      socket.emit('operationFailed', { message: 'Nur der Game Master kann Spieler entfernen' });
+      return;
+    }
+    
+    if (!data.playerName || socket.name === data.playerName) {
+      socket.emit('operationFailed', { message: 'Du kannst dich nicht selbst entfernen' });
+      return;
+    }
+    
+    const playerIndex = users.indexOf(data.playerName);
+    if (playerIndex === -1) {
+      socket.emit('operationFailed', { message: 'Spieler nicht gefunden' });
+      return;
+    }
+    
+    // Remove the player from users array
+    users = users.filter(u => u !== data.playerName);
+    
+    // Clean up other references
+    delete userSocketMap[data.playerName];
+    delete sentences[data.playerName];
+    
+    // If they had a disconnection timeout, clear it
+    if (disconnectedUsers[data.playerName]) {
+      clearTimeout(disconnectedUsers[data.playerName].timeoutId);
+      delete disconnectedUsers[data.playerName];
+    }
+    
+    // Remove from disconnected users list
+    disconnectedUsersList = disconnectedUsersList.filter(u => u !== data.playerName);
+    
+    // If a user before the game master was removed, adjust the index
+    if (playerIndex < currentGameMasterIndex) {
+      currentGameMasterIndex--;
+    }
+    
+    // Broadcast updated state
+    broadcastGameState();
+    
+    // Disconnect their socket if they were connected
+    const playerSocketId = userSocketMap[data.playerName];
+    if (playerSocketId) {
+      const playerSocket = io.sockets.sockets.get(playerSocketId);
+      if (playerSocket) {
+        playerSocket.emit('kickedFromGame', { message: 'Du wurdest aus dem Spiel entfernt' });
+        playerSocket.disconnect(true);
+      }
+    }
+    
+    socket.emit('operationSuccess', { message: `Spieler ${data.playerName} wurde entfernt` });
+    console.log(`Player ${data.playerName} was removed from the game by ${socket.name}`);
   });
 
   // Handle keepAlive pings from clients
@@ -276,8 +342,73 @@ io.on('connection', (socket) => {
       if (disconnectedUsers[data.name]) {
         clearTimeout(disconnectedUsers[data.name].timeoutId);
         delete disconnectedUsers[data.name];
+        
+        // Remove from disconnected users list
+        disconnectedUsersList = disconnectedUsersList.filter(u => u !== data.name);
+        
         console.log('Keep-alive received from user:', data.name);
+        
+        // Update game state to show they're no longer disconnected
+        broadcastGameState();
       }
+    }
+  });
+  
+  // Handle force reconnection (when a user was disconnected but wants to reconnect with same name)
+  socket.on('forceReconnect', (data) => {
+    console.log('Force reconnection attempt for:', data.name);
+    
+    if (data.password !== PASSWORD || !data.name) {
+      socket.emit('loginFailed', { reason: 'invalidPassword' });
+      return;
+    }
+    
+    const oldSocketId = userSocketMap[data.name];
+    
+    // If there's an existing socket connection for this user
+    if (oldSocketId) {
+      // Try to disconnect the old socket
+      const oldSocket = io.sockets.sockets.get(oldSocketId);
+      if (oldSocket) {
+        console.log('Disconnecting old socket for:', data.name);
+        oldSocket.disconnect(true);
+      }
+    }
+    
+    // Clear any disconnection timeout
+    if (disconnectedUsers[data.name]) {
+      clearTimeout(disconnectedUsers[data.name].timeoutId);
+      delete disconnectedUsers[data.name];
+      
+      // Remove from disconnected users list
+      disconnectedUsersList = disconnectedUsersList.filter(u => u !== data.name);
+    }
+    
+    // Update socket information for the new connection
+    socket.name = data.name;
+    userSocketMap[data.name] = socket.id;
+    
+    // If the user isn't in the users list (unlikely but possible), add them
+    if (!users.includes(data.name)) {
+      users.push(data.name);
+    }
+    
+    console.log('Force reconnection successful for:', data.name);
+    
+    // Send success response
+    socket.emit('loginSuccess', { 
+      users: users, 
+      gameMaster: users[currentGameMasterIndex],
+      gameState: gameState,
+      disconnectedUsers: disconnectedUsersList
+    });
+    
+    // Broadcast updated state to all clients
+    broadcastGameState();
+    
+    // If they're the game master, update them with sentences
+    if (socket.name === users[currentGameMasterIndex]) {
+      updateGameMaster();
     }
   });
 
@@ -298,6 +429,9 @@ io.on('connection', (socket) => {
         delete userSocketMap[username];
         delete sentences[username];
         delete disconnectedUsers[username];
+        
+        // Remove from disconnected users list
+        disconnectedUsersList = disconnectedUsersList.filter(u => u !== username);
         
         if (users.length > 0) {
           // If the game master disconnected, choose a new one
@@ -334,6 +468,11 @@ io.on('connection', (socket) => {
         disconnectedAt: Date.now()
       };
       
+      // Add to disconnected users list
+      if (!disconnectedUsersList.includes(username)) {
+        disconnectedUsersList.push(username);
+      }
+      
       // Only update the socket mapping
       delete userSocketMap[username];
       
@@ -343,6 +482,9 @@ io.on('connection', (socket) => {
         username,
         message: `${username} temporär getrennt...`
       });
+      
+      // Broadcast updated game state with disconnected users
+      broadcastGameState();
     }
   });
 });

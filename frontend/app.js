@@ -47,6 +47,7 @@ let users = [];
 let currentGameMaster = '';
 let reconnecting = false;
 let hasSubmittedSentence = false;
+let disconnectedUsers = []; // Track disconnected users
 
 // Initialize UI based on current game state
 function updateUIForGameState() {
@@ -170,6 +171,7 @@ function updatePlayersList() {
     users.forEach(user => {
         const isCurrentUser = user === currentUser;
         const isMaster = user === currentGameMaster;
+        const isDisconnected = disconnectedUsers && disconnectedUsers.includes(user);
         
         const playerItem = document.createElement('div');
         playerItem.className = 'py-2 flex items-center justify-between';
@@ -180,6 +182,12 @@ function updatePlayersList() {
         const nameSpan = document.createElement('span');
         nameSpan.textContent = user;
         nameSpan.className = isCurrentUser ? 'font-bold' : '';
+        
+        // Add strikethrough or opacity for disconnected users
+        if (isDisconnected) {
+            nameSpan.classList.add('opacity-50');
+        }
+        
         nameSection.appendChild(nameSpan);
         
         if (isCurrentUser) {
@@ -189,13 +197,42 @@ function updatePlayersList() {
             nameSection.appendChild(youBadge);
         }
         
+        if (isDisconnected) {
+            const disconnectedBadge = document.createElement('span');
+            disconnectedBadge.textContent = 'Getrennt';
+            disconnectedBadge.className = 'ml-2 bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full';
+            nameSection.appendChild(disconnectedBadge);
+        }
+        
         playerItem.appendChild(nameSection);
+        
+        const badgesSection = document.createElement('div');
+        badgesSection.className = 'flex items-center gap-2';
         
         if (isMaster) {
             const masterBadge = document.createElement('span');
             masterBadge.textContent = 'Game Master';
             masterBadge.className = 'bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full';
-            playerItem.appendChild(masterBadge);
+            badgesSection.appendChild(masterBadge);
+        }
+        
+        // Add remove button for game master to remove other players
+        if (isGameMaster && !isCurrentUser && !isMaster) {
+            const removeBtn = document.createElement('button');
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.className = 'text-red-500 hover:text-red-700 p-1';
+            removeBtn.title = 'Spieler entfernen';
+            removeBtn.onclick = (e) => {
+                e.preventDefault();
+                if (confirm(`Bist du sicher, dass du "${user}" aus dem Spiel entfernen möchtest?`)) {
+                    socket.emit('removePlayer', { playerName: user });
+                }
+            };
+            badgesSection.appendChild(removeBtn);
+        }
+        
+        if (badgesSection.children.length > 0) {
+            playerItem.appendChild(badgesSection);
         }
         
         playersList.appendChild(playerItem);
@@ -315,11 +352,43 @@ socket.on('loginSuccess', (data) => {
     showNotification('Login successful!');
 });
 
+// Get references to force reconnect modal elements
+const reconnectModal = document.getElementById('reconnectModal');
+const reconnectUsername = document.getElementById('reconnectUsername');
+const cancelReconnectBtn = document.getElementById('cancelReconnectBtn');
+const forceReconnectBtn = document.getElementById('forceReconnectBtn');
+
+// Adding modal event handlers
+cancelReconnectBtn.addEventListener('click', () => {
+    reconnectModal.classList.add('hidden');
+});
+
+forceReconnectBtn.addEventListener('click', () => {
+    const username = reconnectUsername.textContent;
+    if (username) {
+        socket.emit('forceReconnect', { 
+            name: username, 
+            password: PASSWORD 
+        });
+        reconnectModal.classList.add('hidden');
+        showNotification('Versuche erneut zu verbinden...', 3000);
+    }
+});
+
 socket.on('loginFailed', (data) => {
     let message = 'Login failed. Please try again.';
+    
     if (data && data.reason === 'nameInUse') {
-        message = 'That name is already taken. Please choose another.';
+        // Show the force reconnect dialog if the name is what we have in local storage
+        if (data.name === localStorage.getItem('nip_username')) {
+            reconnectUsername.textContent = data.name;
+            reconnectModal.classList.remove('hidden');
+            return;
+        } else {
+            message = 'That name is already taken. Please choose another.';
+        }
     }
+    
     showNotification(message);
 });
 
@@ -327,6 +396,7 @@ socket.on('gameStateUpdate', (data) => {
     gameState = data.gameState;
     users = data.users;
     currentGameMaster = data.gameMaster;
+    disconnectedUsers = data.disconnectedUsers || [];
     
     // Make sure reconnected users can see the game
     if (reconnecting && gameScreen.classList.contains('hidden')) {
@@ -422,6 +492,29 @@ socket.on('gameReset', () => {
     setTimeout(() => {
         window.location.reload();
     }, 2000);
+});
+
+// Handle being kicked from the game
+socket.on('kickedFromGame', (data) => {
+    showNotification(data.message || 'Du wurdest aus dem Spiel entfernt', 5000);
+    
+    // Clear local storage
+    localStorage.removeItem('nip_username');
+    localStorage.removeItem('nip_sentence');
+    
+    // Redirect to login screen after a short delay
+    setTimeout(() => {
+        window.location.reload();
+    }, 3000);
+});
+
+// Handle operation success/failure
+socket.on('operationSuccess', (data) => {
+    showNotification(data.message || 'Operation erfolgreich', 3000);
+});
+
+socket.on('operationFailed', (data) => {
+    showNotification(data.message || 'Operation fehlgeschlagen', 3000);
 });
 
 // Handle disconnection

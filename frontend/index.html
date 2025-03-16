@@ -126,6 +126,18 @@
       </div>
     </div>
   </div>
+  
+  <!-- Force Reconnect Modal -->
+  <div id="reconnectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-10">
+    <div class="bg-white rounded-lg p-6 max-w-sm mx-auto">
+      <h3 class="text-lg font-bold mb-3">Name bereits in Verwendung</h3>
+      <p class="mb-4">Du scheinst noch als "<span id="reconnectUsername"></span>" im Spiel zu sein. Möchtest du die alte Verbindung trennen und neu beitreten?</p>
+      <div class="flex justify-end gap-3">
+        <button id="cancelReconnectBtn" class="px-4 py-2 bg-gray-200 rounded-md">Abbrechen</button>
+        <button id="forceReconnectBtn" class="px-4 py-2 bg-purple-600 text-white rounded-md">Neu verbinden</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
